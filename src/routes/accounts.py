@@ -30,6 +30,7 @@ from schemas.accounts import (
     PasswordResetCompleteSchema,
 )
 from security.interfaces import JWTAuthManagerInterface
+from security.token_manager import JWTAuthManager
 
 router = APIRouter()
 
@@ -161,32 +162,42 @@ async def activate_user(
 async def request_password_reset(
     user_data: PasswordResetRequestSchema,
     db: AsyncSession = Depends(get_db),
+    jwt_manager: JWTAuthManager = Depends(get_jwt_auth_manager),
 ) -> dict:
-    result = await db.execute(
-        select(UserModel).where(UserModel.email == user_data.email)
-    )
-    user = result.scalar_one_or_none()
-
-    if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email or token.",
-        )
-
-    result = await db.execute(
-        select(PasswordResetTokenModel).where(
-            PasswordResetTokenModel.user_id == cast(int, user.id)
-        )
-    )
-    existing_token = result.scalar_one_or_none()
-
-    if existing_token:
-        await db.delete(existing_token)
-
-    reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
-    db.add(reset_token)
+    generic_response = {
+        "message": "If you are registered, you will receive an email with instructions."
+    }
 
     try:
+        result = await db.execute(
+            select(UserModel).where(UserModel.email == user_data.email)
+        )
+        user = result.scalar_one_or_none()
+
+        # Якщо користувача немає або він неактивний — повертаємо універсальну відповідь БЕЗ помилок
+        if not user or not user.is_active:
+            return generic_response
+
+        # Перевірка та видалення старого токена, якщо існує
+        result = await db.execute(
+            select(PasswordResetTokenModel).where(
+                PasswordResetTokenModel.user_id == cast(int, user.id)
+            )
+        )
+        existing_token = result.scalar_one_or_none()
+
+        if existing_token:
+            await db.delete(existing_token)
+
+        # Генерація токена скидання пароля
+        token_str = jwt_manager.create_password_reset_token({"sub": str(user.id)})
+        reset_token = PasswordResetTokenModel(
+            token=token_str,
+            user_id=cast(int, user.id),
+            expires_at=jwt_manager.get_token_expiration(token_str),
+        )
+        db.add(reset_token)
+
         await db.commit()
     except SQLAlchemyError:
         await db.rollback()
@@ -195,9 +206,7 @@ async def request_password_reset(
             detail="An error occurred while processing the request.",
         )
 
-    return {
-        "message": "If you are registered, you will receive an email with instructions."
-    }
+    return generic_response
 
 
 @router.post(
@@ -330,7 +339,7 @@ async def user_login(
 
 
 @router.post(
-    "/refresh/",
+"/refresh/",
     response_model=TokenRefreshResponseSchema,
     status_code=status.HTTP_200_OK,
 )
@@ -340,7 +349,9 @@ async def refresh_access_token(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> dict:
     try:
-        payload = jwt_manager.decode_refresh_token(token_data.refresh_token)
+        payload = jwt_manager.decode_refresh_token(
+            token_data.refresh_token
+        )
     except TokenExpiredError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -366,14 +377,11 @@ async def refresh_access_token(
         )
     user_id = cast(int, payload["user_id"])
 
-    if refresh_token.user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token does not belong to the user.",
+    result = await db.execute(
+        select(UserModel).where(
+            UserModel.id == user_id
         )
-
-    result = await db.execute(select(UserModel).where(UserModel.id == user_id))
-
+    )
     user = result.scalar_one_or_none()
 
     if not user:
@@ -382,7 +390,9 @@ async def refresh_access_token(
             detail="User not found.",
         )
 
-    access_token = jwt_manager.create_access_token(data={"user_id": user_id})
+    access_token = jwt_manager.create_access_token(
+        data={"user_id": user_id}
+    )
 
     return {
         "access_token": access_token,
