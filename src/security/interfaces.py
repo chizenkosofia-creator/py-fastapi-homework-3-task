@@ -64,3 +64,9 @@ class JWTAuthManagerInterface(ABC):
         Verify an access token or raise an error if invalid.
         """
         pass
+
+    def verify_password_reset_token_or_raise(self, token: str) -> None:
+        """
+        Verify a password reset token and raise an error if it's invalid or expired.
+        """
+        self.decode_password_reset_token(token)

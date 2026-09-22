@@ -69,8 +69,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
             return jwt.decode(token, self._secret_key_refresh, algorithms=[self._algorithm])
         except ExpiredSignatureError:
             raise TokenExpiredError
-        except JWTError as error:
-            print(error)
+        except JWTError:
             raise InvalidTokenError
 
     def verify_refresh_token_or_raise(self, token: str) -> None:
@@ -94,3 +93,24 @@ class JWTAuthManager(JWTAuthManagerInterface):
             self._secret_key_access,
             expires_delta or timedelta(minutes=self._PASSWORD_RESET_TIMEDELTA_MINUTES)
         )
+
+    def decode_password_reset_token(self, token: str) -> dict:
+        """
+        Decodes and validates a password reset JWT token.
+        """
+        try:
+            return jwt.decode(
+                token,
+                self._secret_key_access,
+                algorithms=[self._algorithm]
+            )
+        except ExpiredSignatureError:
+            raise TokenExpiredError
+        except JWTError:
+            raise InvalidTokenError
+
+    def verify_password_reset_token_or_raise(self, token: str) -> None:
+        """
+        Verify a password reset token and raise an error if it's invalid or expired.
+        """
+        self.decode_password_reset_token(token)
