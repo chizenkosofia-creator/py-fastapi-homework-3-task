@@ -114,3 +114,16 @@ class JWTAuthManager(JWTAuthManagerInterface):
         Verify a password reset token and raise an error if it's invalid or expired.
         """
         self.decode_password_reset_token(token)
+
+    def get_token_expiration(self, token: str) -> datetime:
+        """
+        Extract and return the expiration datetime from a JWT token.
+        """
+        try:
+            payload = jwt.get_unverified_claims(token)
+            exp_timestamp = payload.get("exp")
+            if not exp_timestamp:
+                raise InvalidTokenError
+            return datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
+        except JWTError:
+            raise InvalidTokenError
