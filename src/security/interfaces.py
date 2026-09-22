@@ -24,6 +24,13 @@ class JWTAuthManagerInterface(ABC):
         pass
 
     @abstractmethod
+    def create_password_reset_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
+        """
+        Create a new password reset token.
+        """
+        pass
+
+    @abstractmethod
     def decode_access_token(self, token: str) -> dict:
         """
         Decode and validate an access token.
@@ -34,6 +41,13 @@ class JWTAuthManagerInterface(ABC):
     def decode_refresh_token(self, token: str) -> dict:
         """
         Decode and validate a refresh token.
+        """
+        pass
+
+    @abstractmethod
+    def decode_password_reset_token(self, token: str) -> dict:
+        """
+        Decode and validate a password reset token.
         """
         pass
 

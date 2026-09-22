@@ -11,7 +11,7 @@ class JWTAuthManager(JWTAuthManagerInterface):
     """
     A manager for creating, decoding, and verifying JWT access and refresh tokens.
     """
-
+    _PASSWORD_RESET_TIMEDELTA_MINUTES = 60
     _ACCESS_KEY_TIMEDELTA_MINUTES = 10
     _REFRESH_KEY_TIMEDELTA_MINUTES = 60 * 24 * 7
 
@@ -84,3 +84,13 @@ class JWTAuthManager(JWTAuthManagerInterface):
         Verify an access token and raise an error if it's invalid or expired.
         """
         self.decode_access_token(token)
+
+    def create_password_reset_token(self, data: dict, expires_delta: Optional[timedelta] = None) -> str:
+        """
+        Create a new password reset token with a default or specified expiration time.
+        """
+        return self._create_token(
+            data,
+            self._secret_key_access,
+            expires_delta or timedelta(minutes=self._PASSWORD_RESET_TIMEDELTA_MINUTES)
+        )
