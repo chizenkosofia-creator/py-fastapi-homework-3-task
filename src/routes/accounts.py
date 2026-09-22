@@ -168,9 +168,10 @@ async def request_password_reset(
     user = result.scalar_one_or_none()
 
     if not user or not user.is_active:
-        return {
-            "message": "If you are registered, you will receive an email with instructions."
-        }
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email or token.",
+        )
 
     result = await db.execute(
         select(PasswordResetTokenModel).where(
@@ -273,7 +274,7 @@ async def complete_password_reset(
 @router.post(
     "/login/",
     response_model=UserLoginResponseSchema,
-  status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_200_OK,
 )
 async def user_login(
     user_data: UserLoginRequestSchema,
@@ -329,7 +330,7 @@ async def user_login(
 
 
 @router.post(
-"/refresh/",
+    "/refresh/",
     response_model=TokenRefreshResponseSchema,
     status_code=status.HTTP_200_OK,
 )
